@@ -82,15 +82,37 @@ def main():
             print("  ※ 正の数値を入力してください")
 
     # ── STEP 6: 発注株数の計算・出力 ─────────────────────
-    per_stock = capital / TOTAL_STOCKS
+    import yfinance as yf
+
+    tqqq_capital    = capital * 0.5
+    momentum_capital = capital * 0.5
+    per_stock       = momentum_capital / TOTAL_STOCKS
+
+    # TQQQの前日終値を取得
+    tqqq_data  = yf.download("TQQQ", period="2d", auto_adjust=True, progress=False)
+    tqqq_close = float(tqqq_data["Close"].iloc[-1].item()) if not tqqq_data.empty else 0
 
     print("\n" + "=" * 60)
-    print(f"  発注リスト  （投資資金: ${capital:,.2f} ÷ {TOTAL_STOCKS}銘柄 = ${per_stock:,.2f}/銘柄）")
+    print(f"  発注リスト  （総資金: ${capital:,.2f}）")
+    print(f"  TQQQ 50%: ${tqqq_capital:,.2f}  /  モメンタム株 50%: ${momentum_capital:,.2f} ÷ {TOTAL_STOCKS}銘柄 = ${per_stock:,.2f}/銘柄")
     print("=" * 60)
-    print(f"  {'銘柄':<14}  {'前日終値':>10}  {'発注株数':>10}  {'想定金額':>12}")
-    print("  " + "-" * 54)
+    print(f"  {'銘柄':<14}  {'前日終値':>10}  {'発注株数':>10}  {'想定金額':>12}  {'割合':>6}")
+    print("  " + "-" * 62)
 
     total_estimated = 0.0
+
+    # TQQQ
+    if tqqq_close > 0:
+        tqqq_qty       = round(tqqq_capital / tqqq_close, 2)
+        tqqq_estimated = round(tqqq_qty * tqqq_close, 2)
+        total_estimated += tqqq_estimated
+        print(f"  {'TQQQ':<14}  ${tqqq_close:>9.2f}  {tqqq_qty:>10.2f}株  ${tqqq_estimated:>11,.2f}  {'50.0%':>6}")
+    else:
+        print(f"  {'TQQQ':<14}  前日終値取得不可 → 手動確認")
+
+    print("  " + "-" * 62)
+
+    # モメンタム株
     for ticker in target_tickers:
         close = prev_closes.get(ticker, 0)
         if close <= 0:
@@ -98,17 +120,35 @@ def main():
             continue
         qty           = round(per_stock / close, 2)
         estimated     = round(qty * close, 2)
+        ratio         = estimated / capital * 100
         total_estimated += estimated
-        print(f"  {ticker:<14}  ${close:>9.2f}  {qty:>10.2f}株  ${estimated:>11,.2f}")
+        print(f"  {ticker:<14}  ${close:>9.2f}  {qty:>10.2f}株  ${estimated:>11,.2f}  {ratio:>5.1f}%")
 
-    print("  " + "-" * 54)
-    print(f"  {'合計':<14}  {'':>10}  {'':>10}  ${total_estimated:>11,.2f}")
+    print("  " + "-" * 62)
+    print(f"  {'合計':<14}  {'':>10}  {'':>10}  ${total_estimated:>11,.2f}  {'100.0%':>6}")
     print(f"  残余現金（端数）: ${capital - total_estimated:,.2f}")
     print("=" * 60)
     print("\n  ※ 上記は前日終値ベースの概算です。寄り付き成り行きの約定価格とは異なります。")
     print("  ※ 発注は手動で行ってください。\n")
 
     logger.info("選定・出力完了")
+
+    # ── STEP 7: portfolio.json を更新（トラッカー用）────
+    import json
+    holdings = {"TQQQ": tqqq_qty if tqqq_close > 0 else 0}
+    for ticker in target_tickers:
+        close = prev_closes.get(ticker, 0)
+        if close > 0:
+            holdings[ticker] = round(per_stock / close, 2)
+
+    portfolio_data = {
+        "start_date":       datetime.today().strftime("%Y-%m-%d"),
+        "initial_capital":  capital,
+        "holdings":         holdings,
+    }
+    with open("portfolio.json", "w") as f:
+        json.dump(portfolio_data, f, indent=2, ensure_ascii=False)
+    logger.info("portfolio.json を更新しました（トラッカー用）")
 
 
 if __name__ == "__main__":
