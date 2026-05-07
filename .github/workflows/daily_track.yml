@@ -1,10 +1,19 @@
 name: Daily Performance Tracker
 
 on:
-  workflow_dispatch:  # 外部（cron-job.org）から叩く
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '実行モード'
+        required: true
+        default: 'track'
+        type: choice
+        options:
+          - track   # 通常の日次記録
+          - setup   # 初回のみ: portfolio.json を生成
 
 jobs:
-  track:
+  run:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -21,13 +30,18 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt plotly
 
-      - name: Run tracker
+      - name: Run setup (初回のみ)
+        if: ${{ github.event.inputs.mode == 'setup' }}
+        run: python setup.py
+
+      - name: Run tracker (毎日)
+        if: ${{ github.event.inputs.mode == 'track' }}
         run: python tracker.py
 
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/ docs/
+          git add -A
           git diff --staged --quiet || git commit -m "perf: update $(date +%Y-%m-%d)"
           git push
