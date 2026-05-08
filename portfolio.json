@@ -1,0 +1,22 @@
+{
+  "start_date": "2026-05-08",
+  "initial_capital": 10000,
+  "holdings": {
+    "TQQQ": 70.09,
+    "US.INTC": 3.04,
+    "US.SNDK": 0.25,
+    "US.LITE": 0.37,
+    "US.CIEN": 0.62,
+    "US.DELL": 1.45,
+    "US.WDC": 0.72,
+    "US.STX": 0.43,
+    "US.MU": 0.52,
+    "US.COHR": 1.04,
+    "US.GLW": 1.83,
+    "US.SATS": 2.72,
+    "US.TER": 0.94,
+    "US.FIX": 0.17,
+    "US.AMD": 0.82,
+    "US.LRCX": 1.16
+  }
+}
