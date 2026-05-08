@@ -29,7 +29,9 @@ def load_portfolio() -> dict:
 def load_performance() -> pd.DataFrame:
     if not os.path.exists(PERFORMANCE_PATH):
         return pd.DataFrame(columns=["date", "portfolio_return", "qld_return"])
-    return pd.read_csv(PERFORMANCE_PATH, parse_dates=["date"])
+    df = pd.read_csv(PERFORMANCE_PATH)
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    return df.dropna(subset=["date"])
 
 
 def save_performance(df: pd.DataFrame):
