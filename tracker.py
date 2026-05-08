@@ -143,6 +143,7 @@ def main():
         "qld_return":       round(qld_return, 4),
     }])
     perf_df = pd.concat([perf_df, new_row], ignore_index=True)
+    perf_df = perf_df.drop_duplicates(subset=["date"], keep="last")
     save_performance(perf_df)
     generate_chart(perf_df)
     print("完了")
