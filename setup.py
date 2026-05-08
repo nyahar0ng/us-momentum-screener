@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import os
+import json
 # ============================================================
 # setup.py  –  portfolio.json の初期生成
 #
@@ -7,7 +9,6 @@
 # portfolio.json を生成する。
 # ============================================================
 
-import json
 from datetime import datetime
 
 import pandas as pd
@@ -17,7 +18,32 @@ from universe import get_sp500_tickers
 from momentum import fetch_all_returns, select_portfolio, flatten_portfolio
 from config import TOTAL_STOCKS
 
-INITIAL_CAPITAL = 10000  # 仮想元本（ドル）
+INITIAL_CAPITAL = 10000  # 初回のみ使用。2回目以降はperformance.csvから引き継ぐ
+
+
+def get_current_capital() -> float:
+    """
+    performance.csvが存在する場合は最新のポートフォリオ価値を引き継ぐ。
+    初回（CSVなし）は INITIAL_CAPITAL を使用する。
+    """
+    perf_path = "data/performance.csv"
+    if not os.path.exists(perf_path):
+        print(f"初回実行: 仮想元本 ${INITIAL_CAPITAL:,} を使用")
+        return INITIAL_CAPITAL
+
+    import pandas as pd
+    df = pd.read_csv(perf_path)
+    if df.empty:
+        return INITIAL_CAPITAL
+
+    # 最新のポートフォリオ価値を計算
+    # portfolio_return(%) から逆算: value = initial * (1 + return/100)
+    port_json = json.load(open("portfolio.json"))
+    base_capital = port_json.get("initial_capital", INITIAL_CAPITAL)
+    latest_return = float(df["portfolio_return"].iloc[-1])
+    current_capital = base_capital * (1 + latest_return / 100)
+    print(f"前回ポートフォリオ価値を引き継ぎ: ${current_capital:,.2f}（前回比 {latest_return:+.2f}%）")
+    return current_capital
 
 
 def get_prices(tickers: list[str]) -> dict[str, float]:
@@ -39,7 +65,8 @@ def get_prices(tickers: list[str]) -> dict[str, float]:
 
 def main():
     print("=== Setup: portfolio.json 生成 ===")
-    print(f"仮想元本: ${INITIAL_CAPITAL:,}")
+    capital = get_current_capital()
+    print(f"使用資金: ${capital:,.2f}")
 
     # 銘柄選定
     tickers    = get_sp500_tickers()
@@ -54,8 +81,8 @@ def main():
     all_prices = get_prices(target)
 
     # 株数計算
-    tqqq_capital    = INITIAL_CAPITAL * 0.5
-    momentum_capital = INITIAL_CAPITAL * 0.5
+    tqqq_capital    = capital * 0.5
+    momentum_capital = capital * 0.5
     per_stock       = momentum_capital / TOTAL_STOCKS
 
     holdings = {}
@@ -71,7 +98,7 @@ def main():
     # portfolio.json 書き出し
     data = {
         "start_date":      datetime.today().strftime("%Y-%m-%d"),
-        "initial_capital": INITIAL_CAPITAL,
+        "initial_capital": capital,
         "holdings":        holdings,
     }
     with open("portfolio.json", "w") as f:
@@ -82,7 +109,7 @@ def main():
         price = all_prices.get(ticker, tqqq_close if ticker == "TQQQ" else 0)
         print(f"  {ticker:<14} {qty:>8.2f}株  @ ${price:.2f}")
 
-    print(f"\nportfolio.json を生成しました（元本: ${INITIAL_CAPITAL:,}）")
+    print(f"\nportfolio.json を生成しました（元本: ${capital:,.2f}）")
 
 
 if __name__ == "__main__":
