@@ -42,6 +42,17 @@ def save_performance(df: pd.DataFrame):
 def get_latest_prices(tickers: list[str]) -> dict[str, float]:
     yf_tickers = [t.replace("US.", "") for t in tickers]
     raw = yf.download(yf_tickers, period="5d", auto_adjust=True, progress=False)
+    if raw.empty:
+        return {}
+
+    # 最新データの日付が今日または昨日（直近営業日）でなければ休場
+    latest_date = raw.index[-1].date()
+    from datetime import date, timedelta
+    today = date.today()
+    if latest_date < today - timedelta(days=3):
+        print(f"最新価格日付: {latest_date}（市場休場の可能性）→ スキップ")
+        return {}
+
     prices = {}
     for internal, yf_t in zip(tickers, yf_tickers):
         try:
@@ -90,7 +101,11 @@ def generate_chart(df: pd.DataFrame):
 
     fig.update_layout(
         title=f"パフォーマンス比較  |  TQQQ50+Mom: {latest_port:+.1f}%  |  QLD: {latest_qld:+.1f}%",
-        xaxis_title="日付",
+        xaxis=dict(
+            title="日付",
+            tickformat="%Y-%m-%d",
+            type="date",
+        ),
         yaxis_title="騰落率 (%)",
         yaxis_ticksuffix="%",
         hovermode="x unified",
@@ -118,6 +133,21 @@ def main():
 
     all_tickers = list(holdings.keys()) + ["QLD"]
     prices      = get_latest_prices(all_tickers)
+
+    # 価格が取得できない場合はスキップ
+    if not prices:
+        print("価格データが取得できませんでした。スキップします。")
+        return
+
+    # yfinanceの最新価格日付がすでにCSVに記録済みならスキップ
+    from datetime import date
+    import yfinance as yf
+    raw_check = yf.download("QLD", period="2d", auto_adjust=True, progress=False)
+    if not raw_check.empty:
+        latest_price_date = raw_check.index[-1].strftime("%Y-%m-%d")
+        if not perf_df.empty and latest_price_date in perf_df["date"].dt.strftime("%Y-%m-%d").values:
+            print(f"価格日付 {latest_price_date} はすでに記録済みです。スキップします。")
+            return
 
     # ポートフォリオ騰落率
     port_value      = calc_portfolio_value(holdings, prices)
